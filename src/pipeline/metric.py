@@ -14,7 +14,13 @@ from typing import Any
 
 from .config import Config
 from .data import Example
-from .llm import better_chat, student_chat
+from .llm import ContextExceededError, better_chat, student_chat
+
+_CONTEXT_FEEDBACK = (
+    "The system prompt was too long: combined with the question it exceeded the "
+    "student model's context window, so it could not answer. Make the prompt "
+    "substantially shorter and more concise while keeping the key instructions."
+)
 
 _NUM = re.compile(r"-?\d[\d,]*\.?\d*")
 
@@ -121,7 +127,21 @@ def make_evaluator(cfg: Config):
         prompt = candidate["prompt"] if isinstance(candidate, dict) else candidate
         n = rollout()
         event(f"rollout #{n}: student solving | Q: {example.question[:80]}...", tag="EVAL")
-        student_out = run_student(cfg, prompt, example.question)
+        try:
+            student_out = run_student(cfg, prompt, example.question)
+        except ContextExceededError:
+            # Turn the overflow into optimization signal: score 0 and tell the
+            # reflection LM to shorten the prompt, instead of aborting the run.
+            event(f"rollout #{n}: ✗ context exceeded — prompt too long", tag="EVAL")
+            log(f"context exceeded: {_CONTEXT_FEEDBACK}")
+            return 0.0, {
+                "question": example.question,
+                "gold": example.gold,
+                "pred": None,
+                "correct": False,
+                "student_out": "",
+                "feedback": _CONTEXT_FEEDBACK,
+            }
         pred = extract_answer(student_out)
         event(f"rollout #{n}: judging (gold={example.gold} pred={pred})", tag="EVAL")
         score, feedback = judge(cfg, example, student_out, pred)
