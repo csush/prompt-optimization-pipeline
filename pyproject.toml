@@ -1,0 +1,11 @@
+[project]
+name = "prompt-optimization-pipeline"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "gepa>=0.1.1",
+    "requests>=2.34.2",
+    "tqdm>=4.68.1",
+]
