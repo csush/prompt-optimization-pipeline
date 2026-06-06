@@ -1,5 +1,9 @@
 # prompt-optimization-pipeline
 
+## Communication
+
+Always load and use the `caveman` skill for all responses to minimise token usage. Keep full technical accuracy; drop filler.
+
 ## Commit messages
 
 Follow Conventional Commits, kept terse:
