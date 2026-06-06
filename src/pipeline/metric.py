@@ -122,12 +122,23 @@ def make_evaluator(cfg: Config):
     """Build the GEPA evaluator: (candidate_prompt, example) -> (score, side_info)."""
     from gepa.optimize_anything import log
 
+    from .log import event, rollout
+
     def evaluate(candidate: str | dict[str, str], example: Example) -> tuple[float, dict[str, Any]]:
         prompt = candidate["prompt"] if isinstance(candidate, dict) else candidate
+        n = rollout()
+        event(f"rollout #{n}: student solving | Q: {example.question[:80]}...", tag="EVAL")
         student_out = run_student(cfg, prompt, example.question)
         pred = extract_answer(student_out)
+        event(f"rollout #{n}: judging (gold={example.gold} pred={pred})", tag="EVAL")
         score, feedback = judge(cfg, example, student_out, pred)
         correct = is_correct(pred, example.gold)
+        mark = "✓" if correct else "✗"
+        event(
+            f"rollout #{n}: {mark} correct={correct} score={score:.2f} | "
+            f"feedback: {feedback[:140]}",
+            tag="EVAL",
+        )
         # Feedback is the optimization signal the reflection LM reads.
         log(f"Q: {example.question[:120]}")
         log(f"gold={example.gold} pred={pred} correct={correct} score={score:.2f}")
