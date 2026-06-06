@@ -1,5 +1,15 @@
 # prompt-optimization-pipeline
 
+## Commit messages
+
+Follow Conventional Commits, kept terse:
+
+- Format: `type(scope): subject` — scope optional, subject ≤ 50 chars, imperative mood, no trailing period.
+- Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`.
+- Body only when the *why* isn't obvious; wrap at 72 chars. Skip it for trivial changes.
+
+Example: `docs(agents): add commit message convention`
+
 ## Agent skills
 
 ### Issue tracker
