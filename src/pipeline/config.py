@@ -41,6 +41,9 @@ class Config:
     # Generation knobs.
     student_temperature: float = float(os.environ.get("STUDENT_TEMPERATURE", "0.0"))
     better_temperature: float = float(os.environ.get("BETTER_TEMPERATURE", "0.3"))
+    # Bound the student's completion so prompt + output stays within its context
+    # window (GSM8K chain-of-thought fits comfortably in ~1024 tokens).
+    student_max_tokens: int = _int("STUDENT_MAX_TOKENS", 1024)
     request_timeout: int = _int("LLM_TIMEOUT", 300)
 
     # Dataset slice sizes (GSM8K). Kept tiny by default for local inference.
