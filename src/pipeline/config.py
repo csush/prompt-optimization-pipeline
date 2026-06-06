@@ -1,13 +1,21 @@
 """Central config for the GEPA prompt-optimization POC.
 
-All values overridable via environment variables so the same code runs as a
-quick smoke test or a fuller optimization run without edits.
+Two independent endpoints:
+- student: the cheap model being optimized (local LM Studio by default)
+- better:  the strong model used as judge + reflection (OpenRouter by default)
+
+All values overridable via environment variables (loaded from .env) so the
+same code runs as a quick smoke test or a fuller run without edits.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def _int(name: str, default: int) -> int:
@@ -16,13 +24,19 @@ def _int(name: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Config:
-    # Local OpenAI-compatible endpoint (LM Studio).
-    api_base: str = os.environ.get("LLM_API_BASE", "http://localhost:1234/v1")
-    api_key: str = os.environ.get("LLM_API_KEY", "lm-studio")  # ignored by LM Studio
-
-    # Models exposed by the endpoint.
+    # --- Student endpoint (local LM Studio) ---
+    student_api_base: str = os.environ.get("STUDENT_API_BASE", "http://localhost:1234/v1")
+    student_api_key: str = os.environ.get("STUDENT_API_KEY", "lm-studio")
     student_model: str = os.environ.get("STUDENT_MODEL", "google/gemma-4-12b-qat")
-    better_model: str = os.environ.get("BETTER_MODEL", "qwen/qwen3.6-27b")
+
+    # --- Better endpoint (OpenRouter): judge + reflection ---
+    better_api_base: str = os.environ.get("BETTER_API_BASE", "https://openrouter.ai/api/v1")
+    better_api_key: str = os.environ.get(
+        "BETTER_API_KEY", os.environ.get("OPENROUTER_API_KEY", "")
+    )
+    better_model: str = os.environ.get(
+        "BETTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
 
     # Generation knobs.
     student_temperature: float = float(os.environ.get("STUDENT_TEMPERATURE", "0.0"))
@@ -37,9 +51,10 @@ class Config:
     # GEPA budget.
     max_metric_calls: int = _int("MAX_METRIC_CALLS", 40)
     reflection_minibatch_size: int = _int("REFLECTION_MINIBATCH_SIZE", 3)
-    # Default 1: a single local endpoint serializes anyway, and concurrent
-    # requests trigger model-swap thrash / 400s in LM Studio.
-    max_workers: int = _int("MAX_WORKERS", 1)
+    # Student is local (serial); better is a remote API. Workers parallelize the
+    # GEPA evaluation loop — safe to raise now the judge no longer thrashes a
+    # single local endpoint.
+    max_workers: int = _int("MAX_WORKERS", 2)
 
     seed: int = _int("SEED", 0)
 

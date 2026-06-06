@@ -14,7 +14,7 @@ from typing import Any
 
 from .config import Config
 from .data import Example
-from .llm import chat
+from .llm import better_chat, student_chat
 
 _NUM = re.compile(r"-?\d[\d,]*\.?\d*")
 
@@ -44,14 +44,12 @@ def is_correct(pred: str | None, gold: str) -> bool:
 
 
 def run_student(cfg: Config, prompt: str, question: str) -> str:
-    return chat(
+    return student_chat(
         cfg,
-        cfg.student_model,
         [
             {"role": "system", "content": prompt},
             {"role": "user", "content": question},
         ],
-        temperature=cfg.student_temperature,
     )
 
 
@@ -92,12 +90,7 @@ def judge(cfg: Config, ex: Example, student_out: str, pred: str | None) -> tuple
         student_out=student_out[:4000],
         pred=pred,
     )
-    raw = chat(
-        cfg,
-        cfg.better_model,
-        [{"role": "user", "content": msg}],
-        temperature=cfg.better_temperature,
-    )
+    raw = better_chat(cfg, [{"role": "user", "content": msg}])
     score, feedback = _parse_judge(raw)
     # Anchor the judge to ground truth so a noisy judge can't reward wrong answers.
     if is_correct(pred, ex.gold):
