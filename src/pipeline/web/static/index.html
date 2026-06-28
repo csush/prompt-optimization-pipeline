@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Optimization Runs</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <h1>Optimization Runs</h1>
+      <button id="new-run-btn" type="button">+ New run</button>
+    </header>
+
+    <div id="new-run" class="new-run hidden">
+      <h2>New run</h2>
+      <div class="grid">
+        <label class="wide">Name <input id="f-name" placeholder="GSM8K · Gemma 4-12B" /></label>
+        <label>Student model <input id="f-student_model" value="google/gemma-4-12b-qat" /></label>
+        <label>Better model <input id="f-better_model" value="nvidia/nemotron-3-ultra-550b-a55b:free" /></label>
+        <label>Train size <input id="f-train_size" type="number" value="15" /></label>
+        <label>Val size <input id="f-val_size" type="number" value="8" /></label>
+        <label>Test size <input id="f-test_size" type="number" value="15" /></label>
+        <label>Max metric calls <input id="f-max_metric_calls" type="number" value="40" /></label>
+        <label>Reflection minibatch <input id="f-reflection_minibatch_size" type="number" value="3" /></label>
+        <label>Workers <input id="f-max_workers" type="number" value="2" /></label>
+        <label>Seed <input id="f-seed" type="number" value="0" /></label>
+      </div>
+      <div class="actions">
+        <button id="start-run" type="button">Start run</button>
+        <span id="start-err" class="err"></span>
+      </div>
+    </div>
+
+    <div id="stage">
+      <aside class="rail">
+        <h2>Runs (<span id="rail-count">0</span>)</h2>
+        <div id="rail-list"></div>
+      </aside>
+      <section class="detail" id="detail">
+        <p class="empty">Select a run, or start a new one.</p>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

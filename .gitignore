@@ -219,3 +219,6 @@ __marimo__/
 
 # Downloaded dataset cache
 /data/*.jsonl
+# Optimization run store (webapp)
+/data/runs.sqlite
+/data/runs.sqlite-*
