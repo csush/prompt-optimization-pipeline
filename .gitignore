@@ -219,6 +219,13 @@ __marimo__/
 
 # Downloaded dataset cache
 /data/*.jsonl
-# Optimization run store (webapp)
-/data/runs.sqlite
-/data/runs.sqlite-*
+# Optimization run artifacts (traces, meta, labels) — gitignored scratch
+/data/runs/
+
+# Review interface Playwright deps
+/review/node_modules/
+/review/package-lock.json
+/review/downloaded-labels.jsonl
+
+/review/bun.lock
+/review/test-results/

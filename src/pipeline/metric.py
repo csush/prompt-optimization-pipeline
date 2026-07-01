@@ -1,9 +1,19 @@
-"""Evaluation: run the student prompt, then have the better model judge it.
+"""Evaluation: run the student prompt, then capture a deterministic
+correctness signal and judge feedback separately.
 
-The "better model as judge" produces both the optimization score and the
-textual feedback (Actionable Side Information) that drives GEPA's reflection.
-A deterministic exact-match correctness flag is computed alongside for honest
-accuracy reporting, independent of judge noise.
+The optimization score is the binary ``is_correct`` result — an objective,
+code-based check against the gold numeric answer. There is no judge-derived
+score in the objective: Likert partial credit and judge noise are not allowed
+to steer GEPA toward wrong answers.
+
+The better model still participates, but only as a reflection aid: it emits a
+concise textual critique of *what went wrong and what the prompt should do
+differently* (Actionable Side Information for GEPA's reflection LM). Scoring is
+code; interpretation is the judge.
+
+Every rollout is appended to ``data/runs/<run_id>/rollouts.jsonl`` so the
+trace (question, gold, pred, student output, feedback, candidate prompt) is
+available for error analysis and judge validation after the run.
 """
 
 from __future__ import annotations
@@ -59,7 +69,11 @@ def run_student(cfg: Config, prompt: str, question: str) -> str:
     )
 
 
-_JUDGE_INSTRUCTIONS = """You are a strict grader for grade-school math answers.
+_JUDGE_INSTRUCTIONS = """You are reviewing a grade-school math answer to help
+improve the system prompt that produced it. You do NOT assign a score;
+scoring is handled deterministically by exact numeric match against the gold
+answer. Your job is to describe the mistake concisely so the reflection step
+can change the prompt.
 
 Question:
 {question}
@@ -75,20 +89,23 @@ The student model produced this response:
 ---
 The student's extracted final answer was: {pred}
 
-Grade the student. Respond with ONLY a JSON object:
-{{"score": <float 0.0-1.0>, "feedback": "<concise critique>"}}
+Respond with ONLY a JSON object:
+{{"feedback": "<one or two sentences: the key mistake and what the system prompt should instruct the student to do differently>"}}
 
-Scoring:
-- 1.0 only if the final answer equals {gold}.
-- 0.3-0.6 if the method is sound but the final answer is wrong or missing.
-- 0.0 if the reasoning is wrong or absent.
-In feedback, explain the key mistake and what the prompt should instruct the
-student to do differently (e.g. show steps, state the answer as '#### <number>').
+If the final answer is correct, say so briefly and suggest no change. If it is
+wrong or missing, name the concrete error (wrong operation, arithmetic slip,
+misread question, answer not on a '#### <number>' line) and what the prompt
+should tell the student to do differently.
 """
 
 
-def judge(cfg: Config, ex: Example, student_out: str, pred: str | None) -> tuple[float, str]:
-    """Better model grades the student output. Returns (score, feedback)."""
+def judge(cfg: Config, ex: Example, student_out: str, pred: str | None) -> str:
+    """Better model critiques the student output. Returns feedback text only.
+
+    No score is returned: the optimization objective comes from the
+    deterministic ``is_correct`` check. The judge contributes only the
+    textual side information GEPA's reflection LM reads.
+    """
     msg = _JUDGE_INSTRUCTIONS.format(
         question=ex.question,
         solution=ex.solution,
@@ -97,31 +114,54 @@ def judge(cfg: Config, ex: Example, student_out: str, pred: str | None) -> tuple
         pred=pred,
     )
     raw = better_chat(cfg, [{"role": "user", "content": msg}])
-    score, feedback = _parse_judge(raw)
-    # Anchor the judge to ground truth so a noisy judge can't reward wrong answers.
-    if is_correct(pred, ex.gold):
-        score = 1.0
-    elif score >= 1.0:
-        score = 0.6
-    return score, feedback
+    return _parse_judge(raw)
 
 
-def _parse_judge(raw: str) -> tuple[float, str]:
+def _parse_judge(raw: str) -> str:
+    """Extract the feedback string from the judge's JSON response.
+
+    Falls back to the trimmed raw text (capped) if the model doesn't emit
+    valid JSON, so a malformed judge response still produces reflection
+    signal rather than crashing the rollout.
+    """
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if m:
         try:
             obj = json.loads(m.group())
-            return float(obj.get("score", 0.0)), str(obj.get("feedback", "")).strip()
+            return str(obj.get("feedback", "")).strip()
         except (ValueError, TypeError):
             pass
-    return 0.0, raw.strip()[:500]
+    return raw.strip()[:500]
 
 
-def make_evaluator(cfg: Config):
-    """Build the GEPA evaluator: (candidate_prompt, example) -> (score, side_info)."""
+def make_evaluator(cfg: Config, run_id: str):
+    """Build the GEPA evaluator: (candidate_prompt, example) -> (score, side_info).
+
+    The returned score is binary — ``1.0`` if the extracted answer matches the
+    gold exactly, else ``0.0``. This keeps GEPA's optimization target honest:
+    judge partial credit cannot reward wrong answers. The judge still runs and
+    its feedback flows into ``side_info`` for GEPA's reflection LM and into the
+    persisted trace for review.
+    """
     from gepa.optimize_anything import log
 
     from .log import event, rollout
+    from . import traces
+
+    def _persist(rollout_id: int, phase: str, prompt: str, example: Example,
+                 pred: str | None, correct: bool, student_out: str, feedback: str) -> None:
+        traces.append_rollout(run_id, {
+            "run_id": run_id,
+            "rollout_id": rollout_id,
+            "phase": phase,
+            "prompt": prompt,
+            "question": example.question,
+            "gold": example.gold,
+            "pred": pred,
+            "correct": correct,
+            "student_out": student_out,
+            "feedback": feedback,
+        })
 
     def evaluate(candidate: str | dict[str, str], example: Example) -> tuple[float, dict[str, Any]]:
         prompt = candidate["prompt"] if isinstance(candidate, dict) else candidate
@@ -134,6 +174,7 @@ def make_evaluator(cfg: Config):
             # reflection LM to shorten the prompt, instead of aborting the run.
             event(f"rollout #{n}: ✗ context exceeded — prompt too long", tag="EVAL")
             log(f"context exceeded: {_CONTEXT_FEEDBACK}")
+            _persist(n, "optimize", prompt, example, None, False, "", _CONTEXT_FEEDBACK)
             return 0.0, {
                 "question": example.question,
                 "gold": example.gold,
@@ -144,19 +185,20 @@ def make_evaluator(cfg: Config):
             }
         pred = extract_answer(student_out)
         event(f"rollout #{n}: judging (gold={example.gold} pred={pred})", tag="EVAL")
-        score, feedback = judge(cfg, example, student_out, pred)
+        feedback = judge(cfg, example, student_out, pred)
         correct = is_correct(pred, example.gold)
         mark = "✓" if correct else "✗"
         event(
-            f"rollout #{n}: {mark} correct={correct} score={score:.2f} | "
-            f"feedback: {feedback[:140]}",
+            f"rollout #{n}: {mark} correct={correct} | feedback: {feedback[:140]}",
             tag="EVAL",
         )
         # Feedback is the optimization signal the reflection LM reads.
         log(f"Q: {example.question[:120]}")
-        log(f"gold={example.gold} pred={pred} correct={correct} score={score:.2f}")
+        log(f"gold={example.gold} pred={pred} correct={correct}")
         log(f"judge: {feedback}")
-        return score, {
+        _persist(n, "optimize", prompt, example, pred, correct, student_out, feedback)
+        # Binary objective: code-check only, judge noise cannot steer GEPA.
+        return 1.0 if correct else 0.0, {
             "question": example.question,
             "gold": example.gold,
             "pred": pred,
