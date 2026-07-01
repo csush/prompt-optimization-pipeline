@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-width=1" />
+  <title>Trace Review — prompt-optimization-pipeline</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <h1>Trace Review</h1>
+      <span id="run-badge" class="run-badge" hidden></span>
+    </div>
+    <div class="topbar-actions">
+      <label class="file-button">
+        Load rollouts.jsonl
+        <input type="file" id="file-input" accept=".jsonl,.json,.txt" hidden />
+      </label>
+      <span id="counter" class="counter" aria-live="polite">no traces loaded</span>
+      <span id="counts" class="counts"></span>
+      <div class="jump">
+        <input type="text" id="jump-id" placeholder="jump to rollout id" />
+        <button id="jump-btn" type="button">Go</button>
+      </div>
+      <button id="export" type="button" disabled>Export labels</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="empty" class="empty-state">
+      <h2>No traces loaded</h2>
+      <p>
+        Load a <code>rollouts.jsonl</code> written by a run (under
+        <code>data/runs/&lt;run_id&gt;/rollouts.jsonl</code>) to review one
+        student+judge rollout at a time and collect Pass/Fail labels for
+        error analysis and judge validation.
+      </p>
+      <p class="kbd-row">
+        <kbd>←</kbd>/<kbd>→</kbd> navigate
+        <kbd>1</kbd> Pass
+        <kbd>2</kbd> Fail
+        <kbd>D</kbd> Defer
+        <kbd>U</kbd> Undo
+        <kbd>Cmd</kbd>+<kbd>S</kbd> export
+        <kbd>Cmd</kbd>+<kbd>↵</kbd> save &amp; next
+      </p>
+    </section>
+
+    <section id="trace-card" class="trace-card" hidden>
+      <div class="trace-header">
+        <span id="rollout-badge" class="badge">rollout</span>
+        <span id="phase-badge" class="badge phase">phase</span>
+        <span id="verdict-badge" class="badge verdict">verdict</span>
+      </div>
+
+      <details id="prompt-details" class="block prompt">
+        <summary>Candidate system prompt</summary>
+        <pre id="prompt-text"></pre>
+      </details>
+
+      <div class="block question">
+        <h3>Question</h3>
+        <div id="question" class="question-text"></div>
+      </div>
+
+      <div class="block pred-gold">
+        <div class="pred-gold-cell">
+          <span class="label">Extracted answer</span>
+          <span id="pred" class="value mono"></span>
+        </div>
+        <div class="pred-gold-cell">
+          <span class="label">Gold answer</span>
+          <span id="gold" class="value mono"></span>
+        </div>
+      </div>
+
+      <div class="block student" id="student-block">
+        <h3>Student output</h3>
+        <pre id="student-out"></pre>
+      </div>
+
+      <div class="block feedback" id="feedback-block">
+        <h3>Judge feedback</h3>
+        <blockquote id="feedback"></blockquote>
+      </div>
+    </section>
+
+    <footer id="controls" class="controls" hidden>
+      <button id="prev" type="button" class="nav-btn">← Prev</button>
+      <div class="verdict-buttons">
+        <button id="pass" type="button" class="verdict-btn pass">Pass <kbd>1</kbd></button>
+        <button id="defer" type="button" class="verdict-btn defer">Defer <kbd>D</kbd></button>
+        <button id="fail" type="button" class="verdict-btn fail">Fail <kbd>2</kbd></button>
+      </div>
+      <button id="next" type="button" class="nav-btn">Next →</button>
+      <textarea id="notes" placeholder="Notes — describe what went wrong or right (auto-saved per trace)"></textarea>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

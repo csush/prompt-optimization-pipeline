@@ -39,6 +39,8 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("RESULT")
     print("=" * 60)
+    print(f"Run ID            : {report.run_id}")
+    print(f"Traces            : data/runs/{report.run_id}/rollouts.jsonl")
     print(f"Baseline accuracy : {report.baseline_accuracy:.1%}")
     print(f"Optimized accuracy: {report.optimized_accuracy:.1%}  (n={report.n_test})")
     delta = report.optimized_accuracy - report.baseline_accuracy

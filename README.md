@@ -23,21 +23,23 @@ uv run run.py --smoke                      # tiny sanity run
 uv run run.py --save optimized_prompt.txt  # full run
 ```
 
-## Web app
+## Reviewing traces
 
-A built-in web app for creating, running, and visualizing optimization runs
-live in the browser. Configure a run in the UI; watch the per-iteration GEPA
-log stream over SSE; inspect config, iteration chart, and seed/best prompt
-diff for any run in the rail.
+Every run persists its rollouts to `data/runs/<run_id>/rollouts.jsonl` — one
+JSON record per student+judge rollout with the question, gold answer, extracted
+prediction, correctness flag, full student output, judge feedback, and the
+candidate system prompt. Run metadata (seed/best prompt, accuracies, config) is
+written alongside to `meta.json`. These traces are the raw material for error
+analysis and judge validation: aggregate accuracy alone cannot diagnose *why* a
+prompt did or didn't improve.
+
+Load them in the trace-review interface:
 
 ```
-uv run uvicorn pipeline.web.app:app --port 8000
+open review/index.html
 ```
 
-Then open <http://localhost:8000>. Add `--reload` during development.
-
-- Runs persist across restarts in `data/runs.sqlite` (gitignored).
-- One run executes at a time; starting another while a run is active returns
-  409 and is surfaced in the form.
-- Iterations are parsed from GEPA's accept/reject decision log lines and
-  plotted live as they stream.
+Pick a `rollouts.jsonl` (or a `meta.json`) file. The interface renders one
+trace at a time with Pass/Fail/Defer buttons, a notes field, next/previous
+navigation, and keyboard shortcuts. Labels are auto-saved to your browser and
+can be exported as a `labels.jsonl` for `validate-evaluator`.
