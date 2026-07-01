@@ -64,6 +64,7 @@ def _accuracy(
             tag="TEST",
         )
         traces.append_rollout(run_id, {
+            "run_id": run_id,
             "rollout_id": None,
             "phase": label,
             "prompt": prompt,
@@ -80,19 +81,18 @@ def _accuracy(
 def _as_prompt(candidate: str | dict[str, str]) -> str:
     return candidate["prompt"] if isinstance(candidate, dict) else candidate
 
-
 def _new_run_id() -> str:
-    return f"run-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}"
+    return f"run-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:12]}"
 
 
 def run(cfg: Config) -> Report:
     run_id = _new_run_id()
+    started_at = time.strftime("%Y-%m-%dT%H:%M:%S")
     event(f"run_id={run_id}")
     traces.write_meta(run_id, {
         "run_id": run_id,
         "seed_prompt": SEED_PROMPT,
-        "status": "running",
-        "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "started_at": started_at,
         "config": {
             "student_model": cfg.student_model,
             "better_model": cfg.better_model,
@@ -149,7 +149,8 @@ def run(cfg: Config) -> Report:
         "run_id": run_id,
         "seed_prompt": SEED_PROMPT,
         "status": "completed",
-        "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "started_at": started_at,
+        "ended_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "baseline_accuracy": baseline_acc,
         "optimized_accuracy": optimized_acc,
         "n_test": len(test),

@@ -18,6 +18,23 @@
 
 * { box-sizing: border-box; }
 
+/* Keep [hidden] authoritative even when a class sets display (e.g. .controls). */
+:where([hidden]) { display: none !important; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* A visually-hidden file input remains focusable + keyboard-operable. */
+.visually-hidden:focus { outline: auto; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -157,7 +174,6 @@ kbd {
 .trace-header {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(to bottom, #fff, #f6f7f9);
@@ -174,7 +190,6 @@ kbd {
   background: var(--panel);
 }
 .badge.phase { color: var(--accent); border-color: var(--accent); background: #f0f4fb; }
-.badge.verdict.unknown { color: var(--muted); }
 .badge.verdict.correct { color: var(--pass); background: var(--pass-bg); border-color: var(--pass); }
 .badge.verdict.incorrect { color: var(--fail); background: var(--fail-bg); border-color: var(--fail); }
 

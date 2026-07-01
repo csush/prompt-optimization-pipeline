@@ -151,6 +151,7 @@ def make_evaluator(cfg: Config, run_id: str):
     def _persist(rollout_id: int, phase: str, prompt: str, example: Example,
                  pred: str | None, correct: bool, student_out: str, feedback: str) -> None:
         traces.append_rollout(run_id, {
+            "run_id": run_id,
             "rollout_id": rollout_id,
             "phase": phase,
             "prompt": prompt,

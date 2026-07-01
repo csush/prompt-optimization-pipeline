@@ -1,6 +1,6 @@
 """Lightweight, timestamped logging for visibility into each optimization step.
 
-Two surfaces:
+Three surfaces:
 - `event()` — timestamped stdout line for our own pipeline events (load,
   rollout, accept/reject, test results). Flushes immediately.
 - `GepaLogger` — a LoggerProtocol passed to GEPA so its engine's per-iteration

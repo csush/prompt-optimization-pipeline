@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-width=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Trace Review — prompt-optimization-pipeline</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -16,12 +16,12 @@
     <div class="topbar-actions">
       <label class="file-button">
         Load rollouts.jsonl
-        <input type="file" id="file-input" accept=".jsonl,.json,.txt" hidden />
+        <input type="file" id="file-input" accept=".jsonl,.json,.txt" class="visually-hidden" />
       </label>
       <span id="counter" class="counter" aria-live="polite">no traces loaded</span>
-      <span id="counts" class="counts"></span>
+      <span id="counts" class="counts" aria-live="polite" aria-atomic="true"></span>
       <div class="jump">
-        <input type="text" id="jump-id" placeholder="jump to rollout id" />
+        <input type="text" id="jump-id" placeholder="jump to rollout id" aria-label="Jump to rollout id" />
         <button id="jump-btn" type="button">Go</button>
       </div>
       <button id="export" type="button" disabled>Export labels</button>
@@ -95,7 +95,7 @@
         <button id="fail" type="button" class="verdict-btn fail">Fail <kbd>2</kbd></button>
       </div>
       <button id="next" type="button" class="nav-btn">Next →</button>
-      <textarea id="notes" placeholder="Notes — describe what went wrong or right (auto-saved per trace)"></textarea>
+      <textarea id="notes" placeholder="Notes — describe what went wrong or right (auto-saved per trace)" aria-label="Reviewer notes for this trace"></textarea>
     </footer>
   </main>
 

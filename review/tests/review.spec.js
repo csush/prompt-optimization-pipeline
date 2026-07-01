@@ -120,21 +120,24 @@ test.describe("trace review interface", () => {
 
   test("export downloads labels.jsonl with one line per labeled trace", async ({ page }) => {
     await loadFixture(page);
-    await page.click("#pass"); // trace 1
-    await page.click("#next");
-    await page.click("#fail"); // trace 2 (advance) -> trace 3
+    await page.click("#pass"); // trace 1 -> trace 2
+    await page.click("#next"); // -> trace 3
+    await page.click("#fail"); // trace 3 (advance) -> trace 4
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.click("#export"),
     ]);
     expect(download.suggestedFilename()).toContain("labels.jsonl");
     const tmp = path.resolve(__dirname, "..", "downloaded-labels.jsonl");
-    await download.saveAs(tmp);
-    const lines = fs.readFileSync(tmp, "utf8").trim().split("\n").filter(Boolean);
-    expect(lines.length).toBeGreaterThanOrEqual(2);
-    const first = JSON.parse(lines[0]);
-    expect(first.verdict).toMatch(/^(pass|fail|defer)$/);
-    fs.unlinkSync(tmp);
+    try {
+      await download.saveAs(tmp);
+      const lines = fs.readFileSync(tmp, "utf8").trim().split("\n").filter(Boolean);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+      const first = JSON.parse(lines[0]);
+      expect(first.verdict).toMatch(/^(pass|fail|defer)$/);
+    } finally {
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+    }
   });
 
   test("jump-to-id moves to the matching rollout", async ({ page }) => {
