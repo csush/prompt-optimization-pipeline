@@ -2,7 +2,7 @@
    Rail = list of runs from /api/runs; detail = config + iterations chart +
    live log stream + seed/best prompt diff; SSE at /api/runs/{id}/events. */
 
-const state = { runs: [], selectedRunId: null, es: null, liveIters: [] };
+const state = { runs: [], selectedRunId: null, es: null, liveIters: [], iterSkip: 0 };
 
 const API = "/api/runs";
 const SEED_LABEL_OF = {
@@ -125,11 +125,15 @@ function escapeHtml(s) {
 async function selectRun(id) {
   if (state.es) { state.es.close(); state.es = null; }
   state.selectedRunId = id;
-  state.liveIters = [];
   renderRail();
   let r;
   try { r = await fetchRun(id); }
   catch { return; }
+  // Seed liveIters with the snapshot. The SSE stream replays buffered
+  // iterations first (== snapshot), so skip that many iteration events to
+  // avoid doubling the chart. Only live (new) iterations append.
+  state.liveIters = [...r.iterations];
+  state.iterSkip = r.iterations.length;
   renderDetail(r, r.iterations, []);
   openSSE(id, r);
 }
@@ -150,8 +154,10 @@ function openSSE(id, r) {
         log.scrollTop = log.scrollHeight;
       }
     } else if (evt.type === "iteration") {
-      state.liveIters.push(evt);
-      refreshChart(r);
+      // The first `iterSkip` iteration events are the SSE replay of the
+      // snapshot already seeded into liveIters — drop them to avoid doubling.
+      if (state.iterSkip > 0) { state.iterSkip--; }
+      else { state.liveIters.push(evt); refreshChart(); }
     } else if (evt.type === "status") {
       updateStatusBadge(evt.status);
     } else if (evt.type === "done") {
@@ -163,14 +169,13 @@ function openSSE(id, r) {
   es.onerror = () => { /* keepalive/breaks — let EventSource retry */ };
 }
 
-function refreshChart(r) {
-  const all = [...(r?.iterations ?? []), ...state.liveIters];
+function refreshChart() {
+  const all = state.liveIters;
   const chart = document.querySelector(".chart");
   if (chart) {
     chart.innerHTML = `<h3>Iteration score (${all.length})</h3>` + svgLine(all.map(i => i.score), 560, 150, { r: 3, stroke: "#5b9dff", fill: "#5b9dff" });
   }
 }
-
 function updateStatusBadge(status) {
   const badge = document.querySelector(".status span:first-child");
   if (badge) {

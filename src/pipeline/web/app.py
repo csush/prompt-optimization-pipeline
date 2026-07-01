@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -17,17 +18,19 @@ from .run_manager import ConflictError, manager
 
 _STATIC = Path(__file__).resolve().parent / "static"
 
-app = FastAPI(title="Optimization Runs", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    store.init_db()
+    yield
+
+
+app = FastAPI(title="Optimization Runs", version="0.1.0", lifespan=lifespan)
 
 
 class CreateRunRequest(BaseModel):
     name: str | None = None
     overrides: dict[str, Any] = {}
-
-
-@app.on_event("startup")
-def _startup() -> None:
-    store.init_db()
 
 
 @app.get("/api/runs")
@@ -81,6 +84,8 @@ async def run_events(run_id: str):
                     # queue.Empty on timeout — send keepalive comment.
                     yield ": keepalive\n\n"
                     continue
+                if evt.get("type") == "__unsubscribe__":
+                    break
                 yield _sse(evt)
                 if evt.get("type") == "done":
                     break
@@ -99,6 +104,5 @@ app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
 
 @app.get("/")
-def index() -> Any:
-    from fastapi.responses import FileResponse
+def index() -> FileResponse:
     return FileResponse(_STATIC / "index.html")

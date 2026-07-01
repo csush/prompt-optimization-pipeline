@@ -13,7 +13,7 @@ persisted to SQLite via `store`.
 from __future__ import annotations
 
 import dataclasses
-import json
+import typing
 import queue
 import re
 import threading
@@ -27,10 +27,13 @@ from ..log import set_subscriber, unset_subscriber, SubscriberToken
 from ..optimize import run as run_pipeline, Report
 from . import store
 
+# Per-iteration decision signals from GEPA's log. Matching one of these means
+# a candidate was either accepted (better program found) or rejected (subsample
+# not better). Other "score" lines (base program, selected program, best-on-valset)
+# are aggregates, not decisions — excluded so the chart shows one point per iteration.
 _GEPA_ITER = re.compile(
-    r"(?:Best score on valset|Base program full valset score|"
-    r"Selected program \d+ score|Found a better program on the valset with score)"
-    r":?\s+([0-9.]+)"
+    r"(?:Found a better program on the valset with score"
+    r"|New subsample score)\D*([0-9.]+)"
 )
 
 
@@ -81,7 +84,9 @@ class RunManager:
         st = self._states.get(run_id)
         if st is None:
             return None
-        q: queue.Queue = queue.Queue()
+        # Bounded so a stalled SSE client gets dropped (via the Full path in
+        # _emit_unlocked) rather than accumulating every event forever.
+        q: queue.Queue = queue.Queue(maxsize=1000)
         with st.lock:
             st.queues.append(q)
             replay_events = list(st.events)
@@ -95,6 +100,13 @@ class RunManager:
         with st.lock:
             if q in st.queues:
                 st.queues.remove(q)
+        # Unblock any orphaned executor thread still blocked in q.get on this
+        # queue (e.g. SSE client disconnected mid-30s wait) so it returns
+        # promptly instead of pinning a pool thread.
+        try:
+            q.put_nowait({"type": "__unsubscribe__"})
+        except queue.Full:
+            pass
 
     # ── worker ───────────────────────────────────────────────
     def _worker(self, run_id: str, cfg: Config, st: RunState) -> None:
@@ -124,10 +136,9 @@ class RunManager:
             m = _GEPA_ITER.search(msg) if tag == "GEPA" else None
             if m:
                 score = float(m.group(1))
-                # "better program" / "Found a better" => accepted; anything else
-                # (Base program, Selected program, New subsample ... not better) => skip
-                # but count as iteration only when score relates to a candidate outcome.
-                accepted = "better" in msg.lower()
+                # ACCEPT = "Found a better program"; REJECT = "New subsample score
+                # ... is not better". Both contain "better" -> match by prefix.
+                accepted = msg.lower().startswith("found a better program")
                 st.iterations.append({"score": score, "accepted": accepted})
                 store.append_iteration(st.run_id, score, accepted,
                                        updated_at=time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -164,11 +175,13 @@ class RunManager:
                                                                   "reflection_minibatch_size", "seed",
                                                                   "student_model", "better_model"}
         clean: dict[str, Any] = {}
+        # `from __future__ import annotations` makes dataclass field types strings,
+        # so resolve real hints to detect int fields and coerce DOM-string overrides.
+        hints = typing.get_type_hints(Config)
         for k, v in overrides.items():
             if k not in allowed:
                 continue
-            field_type = {f.name: f.type for f in dataclasses.fields(Config)}.get(k)
-            if field_type is int and v is not None:
+            if hints.get(k) is int and v is not None and v != "":
                 try:
                     v = int(v)
                 except (TypeError, ValueError):
